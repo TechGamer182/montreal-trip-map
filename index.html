@@ -3,31 +3,31 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Montreal Exploration Map & Itinerary</title>
+    <title>Ultimate Montreal Interactive Travel Planner</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
     <style>
         :root {
             --primary: #1e3a8a;
-            --secondary: #0d9488;
-            --accent: #f59e0b;
+            --primary-light: #3b82f6;
             --bg: #f8fafc;
-            --card-bg: #ffffff;
+            --sidebar-bg: #ffffff;
             --text: #0f172a;
-            --text-muted: #64748b;
             --border: #e2e8f0;
             
-            --zone-1: #ef4444; /* Old Montreal */
-            --zone-2: #3b82f6; /* Downtown */
-            --zone-3: #10b981; /* Mount Royal / Mile End */
-            --zone-4: #8b5cf6; /* Olympic Park */
-            --zone-5: #f59e0b; /* Jean-Drapeau */
-            --zone-6: #64748b; /* Outlying */
+            /* Cluster Colors */
+            --color-old-mtl: #ef4444;
+            --color-downtown: #3b82f6;
+            --color-mountain: #10b981;
+            --color-olympic: #8b5cf6;
+            --color-islands: #f59e0b;
+            --color-regional: #64748b;
         }
 
         * {
             box-sizing: border-box;
             margin: 0;
             padding: 0;
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
         }
 
         body {
@@ -38,471 +38,378 @@
             overflow: hidden;
         }
 
-        /* Sidebar Style */
+        /* Sidebar Container */
         .sidebar {
-            width: 450px;
-            background: var(--card-bg);
+            width: 480px;
+            background: var(--sidebar-bg);
             border-right: 1px solid var(--border);
             display: flex;
             flex-direction: column;
             height: 100%;
             box-shadow: 4px 0 24px rgba(0,0,0,0.05);
-            z-index: 10;
+            z-index: 1000;
         }
 
-        .header {
+        .sidebar-header {
             padding: 24px;
-            background: linear-gradient(135deg, var(--primary), #2563eb);
+            background: linear-gradient(135deg, var(--primary), #1d4ed8);
             color: white;
         }
 
-        .header h1 {
-            font-size: 24px;
+        .sidebar-header h1 {
+            font-size: 22px;
             font-weight: 700;
-            margin-bottom: 4px;
+            margin-bottom: 6px;
         }
 
-        .header p {
-            font-size: 14px;
+        .sidebar-header p {
+            font-size: 13px;
             opacity: 0.9;
         }
 
-        .zone-list {
-            flex: 1;
-            overflow-y: auto;
-            padding: 20px;
-        }
-
-        .zone-card {
-            background: var(--bg);
-            border-radius: 12px;
+        /* Interactive Controls */
+        .search-filter-container {
             padding: 16px;
-            margin-bottom: 16px;
-            border-left: 5px solid var(--text-muted);
-            transition: transform 0.2s, box-shadow 0.2s;
-        }
-
-        .zone-card:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 6px 12px rgba(0,0,0,0.05);
-        }
-
-        .zone-1-card { border-left-color: var(--zone-1); }
-        .zone-2-card { border-left-color: var(--zone-2); }
-        .zone-3-card { border-left-color: var(--zone-3); }
-        .zone-4-card { border-left-color: var(--zone-4); }
-        .zone-5-card { border-left-color: var(--zone-5); }
-        .zone-6-card { border-left-color: var(--zone-6); }
-
-        .zone-title {
-            font-size: 16px;
-            font-weight: 700;
-            margin-bottom: 10px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-
-        .item-list {
-            list-style: none;
-        }
-
-        .item-list li {
-            font-size: 13.5px;
-            padding: 6px 0;
-            border-bottom: 1px solid rgba(0,0,0,0.04);
+            background: #fff;
+            border-bottom: 1px solid var(--border);
             display: flex;
             flex-direction: column;
+            gap: 12px;
         }
 
-        .item-list li:last-child {
-            border-bottom: none;
+        .search-bar {
+            width: 100%;
+            padding: 10px 14px;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            font-size: 14px;
+            outline: none;
+            transition: border-color 0.2s;
         }
 
-        .place-name {
+        .search-bar:focus {
+            border-color: var(--primary-light);
+        }
+
+        .filter-buttons {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+        }
+
+        .filter-btn {
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 11px;
             font-weight: 600;
+            cursor: pointer;
+            border: 1px solid var(--border);
+            background: #fff;
+            color: #475569;
+            transition: all 0.2s;
+        }
+
+        .filter-btn.active, .filter-btn:hover {
+            background: var(--primary);
+            color: white;
+            border-color: var(--primary);
+        }
+
+        /* Dynamic List View */
+        .locations-list {
+            flex: 1;
+            overflow-y: auto;
+            padding: 16px;
+        }
+
+        .location-item {
+            background: #f8fafc;
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 14px;
+            margin-bottom: 12px;
+            cursor: pointer;
+            transition: all 0.2s;
+            border-left: 5px solid #cbd5e1;
+        }
+
+        .location-item:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+            background: #fff;
+        }
+
+        .item-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 4px;
+        }
+
+        .item-title {
+            font-weight: 700;
+            font-size: 15px;
             color: #1e293b;
         }
 
-        .note {
+        .item-type {
+            font-size: 10px;
+            text-transform: uppercase;
+            font-weight: 700;
+            padding: 2px 6px;
+            border-radius: 4px;
+            background: #e2e8f0;
+        }
+
+        .item-desc {
+            font-size: 12.5px;
+            color: #64748b;
+            margin-top: 4px;
+        }
+
+        .item-meta {
+            margin-top: 8px;
             font-size: 11.5px;
-            color: #0d9488;
             font-style: italic;
-            margin-top: 2px;
             display: flex;
             align-items: center;
             gap: 4px;
         }
 
-        .note::before {
-            content: "📌";
-        }
-
-        .food-note {
-            color: #b45309;
-        }
-        .food-note::before {
-            content: "🍔";
-        }
-
-        /* Map Container */
-        .map-container {
+        /* Map Canvas Window */
+        #map {
             flex: 1;
-            position: relative;
-            background: #e0f2fe; /* Light blue representing water around Montreal island */
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            padding: 20px;
-        }
-
-        .map-canvas {
-            width: 100%;
-            max-width: 900px;
             height: 100%;
-            max-height: 700px;
-            background: #f1f5f9;
-            border-radius: 24px;
-            box-shadow: 0 12px 36px rgba(0,0,0,0.1);
-            position: relative;
-            overflow: hidden;
-            border: 2px solid #cbd5e1;
         }
 
-        /* SVG Stylings for Map Background */
-        .map-svg {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            z-index: 1;
-        }
-
-        /* Interactive Map Nodes */
-        .map-node {
-            position: absolute;
-            z-index: 2;
-            transform: translate(-50%, -50%);
-            cursor: pointer;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            transition: transform 0.2s;
-        }
-
-        .map-node:hover {
-            transform: translate(-50%, -50%) scale(1.1);
-            z-index: 5;
-        }
-
-        .pin {
-            width: 24px;
-            height: 24px;
-            border-radius: 50% 50% 50% 0;
-            background: var(--text-muted);
-            transform: rotate(-45deg);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            box-shadow: -2px 2px 4px rgba(0,0,0,0.3);
-            border: 2px solid white;
-        }
-
-        .pin-inner {
-            width: 8px;
-            height: 8px;
-            background: white;
-            border-radius: 50%;
-        }
-
-        .node-label {
-            background: rgba(15, 23, 42, 0.85);
-            color: white;
-            padding: 4px 8px;
-            border-radius: 6px;
-            font-size: 11px;
-            font-weight: 600;
-            margin-top: 6px;
-            white-space: nowrap;
-            box-shadow: 0 2px 6px rgba(0,0,0,0.15);
-            backdrop-filter: blur(2px);
-        }
-
-        /* Zone Color Variations */
-        .node-z1 .pin { background: var(--zone-1); }
-        .node-z2 .pin { background: var(--zone-2); }
-        .node-z3 .pin { background: var(--zone-3); }
-        .node-z4 .pin { background: var(--zone-4); }
-        .node-z5 .pin { background: var(--zone-5); }
-        .node-z6 .pin { background: var(--zone-6); }
-
-        /* Floating App Promo/Legend */
-        .map-legend {
-            position: absolute;
-            bottom: 24px;
-            right: 24px;
-            background: rgba(255, 255, 255, 0.95);
-            padding: 16px;
+        /* Custom Popup Styles */
+        .custom-popup .leaflet-popup-content-wrapper {
             border-radius: 12px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-            z-index: 4;
-            border: 1px solid var(--border);
-            width: 260px;
+            padding: 6px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.15);
         }
-
-        .legend-title {
-            font-size: 13px;
-            font-weight: 700;
-            margin-bottom: 8px;
+        
+        .popup-card h3 {
+            font-size: 16px;
+            margin-bottom: 6px;
             color: var(--primary);
         }
 
-        .legend-item {
-            display: flex;
-            align-items: center;
-            font-size: 11.5px;
-            margin-bottom: 4px;
-            gap: 8px;
-        }
-
-        .legend-color {
-            width: 12px;
-            height: 12px;
-            border-radius: 3px;
-        }
-
-        .app-notice {
-            margin-top: 12px;
-            padding-top: 8px;
-            border-top: 1px solid var(--border);
-            font-size: 11px;
+        .popup-card p {
+            font-size: 13px;
             color: #475569;
+            margin-bottom: 4px;
+        }
+
+        .popup-badge {
+            display: inline-block;
+            font-size: 10px;
+            background: #f1f5f9;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-weight: 600;
         }
     </style>
 </head>
 <body>
 
-    <!-- Sidebar Itinerary List -->
     <div class="sidebar">
-        <div class="header">
-            <h1>Montreal Itinerary Map</h1>
-            <p>Geographic Hubs & Curated Hotspots</p>
+        <div class="sidebar-header">
+            <h1>Montreal Master Map</h1>
+            <p>Click items to auto-pan the map. Search or filter by neighborhood.</p>
         </div>
-        <div class="zone-list">
-            
-            <!-- Zone 1 -->
-            <div class="zone-card zone-1-card">
-                <div class="zone-title" style="color: var(--zone-1);">
-                    <span>1. Old Montreal & Old Port</span>
-                    <span>📍 SE Core</span>
-                </div>
-                <ul class="item-list">
-                    <li><span class="place-name">Old Montreal (Vieux-Montréal)</span><span class="note">Highly walkable all day</span></li>
-                    <li><span class="place-name">Basilique Notre-Dame de Montréal</span><span class="note">Aura Light Show inside</span></li>
-                    <li><span class="place-name">Old Port & La Grande Roue Wheel</span></li>
-                    <li><span class="place-name">Montreal Science Center</span></li>
-                    <li><span class="place-name">Marché Bonsecours & Haunted Tour</span></li>
-                    <li><span class="place-name">Modavie & Holder</span><span class="note food-note">Exquisite French Dining</span></li>
-                    <li><span class="place-name">Monarque & The Crew Collective</span><span class="note food-note">Coffee inside historic bank</span></li>
-                    <li><span class="place-name">Crêperie St. Paul & Pincette</span><span class="note food-note">Pancakes/Crepes & Lobster Bar</span></li>
-                </ul>
+        
+        <div class="search-filter-container">
+            <input type="text" class="search-bar" id="searchBar" placeholder="🔍 Search attractions, foods, or streets...">
+            <div class="filter-buttons">
+                <button class="filter-btn active" onclick="filterZone('all')">Show All</button>
+                <button class="filter-btn" onclick="filterZone('old-mtl')">Old Montreal</button>
+                <button class="filter-btn" onclick="filterZone('downtown')">Downtown</button>
+                <button class="filter-btn" onclick="filterZone('mountain')">Mount Royal / Mile End</button>
+                <button class="filter-btn" onclick="filterZone('olympic')">Olympic Park</button>
+                <button class="filter-btn" onclick="filterZone('islands')">The Islands</button>
             </div>
-
-            <!-- Zone 2 -->
-            <div class="zone-card zone-2-card">
-                <div class="zone-title" style="color: var(--zone-2);">
-                    <span>2. Downtown & Underground City</span>
-                    <span>📍 Central Hub</span>
-                </div>
-                <ul class="item-list">
-                    <li><span class="place-name">St. Catherine’s Shopping Area</span></li>
-                    <li><span class="place-name">Underground City (RÉSO)</span><span class="note">747 Rue du Square-Victoria</span></li>
-                    <li><span class="place-name">Oasis Immersion Exhibition</span></li>
-                    <li><span class="place-name">Montreal Museum of Fine Arts</span></li>
-                    <li><span class="place-name">Le Passé Composé</span><span class="note food-note">Duck Liver Lunch (1310 Boul. de Maisonneuve E)</span></li>
-                    <li><span class="place-name">Dunn's Famous & Le Pois Penché</span><span class="note food-note">Smoked Meat / High-end Seafood</span></li>
-                    <li><span class="place-name">C'choColat & Le Mount Stephen</span><span class="note food-note">Desserts & Luxury Breakfast</span></li>
-                </ul>
-            </div>
-
-            <!-- Zone 3 -->
-            <div class="zone-card zone-3-card">
-                <div class="zone-title" style="color: var(--zone-3);">
-                    <span>3. Mount Royal & Little Italy</span>
-                    <span>📍 Central West / North</span>
-                </div>
-                <ul class="item-list">
-                    <li><span class="place-name">Mount Royal Park & Lookouts</span></li>
-                    <li><span class="place-name">Saint Joseph's Oratory</span><span class="note">Iconic landmark dome</span></li>
-                    <li><span class="place-name">Jean-Talon Market & Little Italy</span><span class="note food-note">Italian eats & Lobster Rolls</span></li>
-                    <li><span class="place-name">Schwartz's Deli</span><span class="note food-note">Legendary Smoked Meat Sandwich</span></li>
-                    <li><span class="place-name">Café Olimpico & Dulce</span><span class="note food-note">Coffee Ice Cream & Best Churros</span></li>
-                </ul>
-            </div>
-
-            <!-- Zone 4 -->
-            <div class="zone-card zone-4-card">
-                <div class="zone-title" style="color: var(--zone-4);">
-                    <span>4. Olympic Park / Space for Life</span>
-                    <span>📍 East End</span>
-                </div>
-                <ul class="item-list">
-                    <li><span class="place-name">Montreal Biodome</span></li>
-                    <li><span class="place-name">Montreal Botanical Garden</span><span class="note food-note">Perfect spot to eat local Bagels</span></li>
-                    <li><span class="place-name">The Montreal Insectarium</span></li>
-                </ul>
-            </div>
-
-            <!-- Zone 5 -->
-            <div class="zone-card zone-5-card">
-                <div class="zone-title" style="color: var(--zone-5);">
-                    <span>5. Parc Jean-Drapeau & Islands</span>
-                    <span>📍 St. Lawrence River</span>
-                </div>
-                <ul class="item-list">
-                    <li><span class="place-name">Parc Jean-Drapeau & Île Sainte-Hélène</span></li>
-                    <li><span class="place-name">Île Notre-Dame (F1 Race Circuit)</span></li>
-                    <li><span class="place-name">La Ronde Amusement Park</span><span class="note food-note">Try the wild Pizza with M&M toppings!</span></li>
-                    <li><span class="place-name">Cirque Du Soleil Theater</span></li>
-                </ul>
-            </div>
-
-            <!-- Zone 6 -->
-            <div class="zone-card zone-6-card">
-                <div class="zone-title" style="color: var(--zone-6);">
-                    <span>6. Transit & Regional Gems</span>
-                    <span>📍 Outlying Areas</span>
-                </div>
-                <ul class="item-list">
-                    <li><span class="place-name">Parc Safari</span><span class="note">~1 hour South drive near border</span></li>
-                    <li><span class="place-name">King’s Crossing Fashion Outlet</span><span class="note">On route from Toronto</span></li>
-                    <li><span class="place-name">Chinatown & Café Cherrier</span><span class="note">Transit food gems</span></li>
-                </ul>
-            </div>
-
         </div>
+
+        <div class="locations-list" id="locationsList">
+            </div>
     </div>
 
-    <!-- Map Board Layout -->
-    <div class="map-container">
-        <div class="map-canvas">
-            <!-- Simulated Stylized Geographic Grid using SVG -->
-            <svg class="map-svg" viewBox="0 0 900 700">
-                <!-- St. Lawrence River Outline Background -->
-                <path d="M 0,550 Q 300,500 450,520 T 900,420 L 900,700 L 0,700 Z" fill="#bae6fd" opacity="0.6"/>
-                <!-- St. Lawrence River Top Branch -->
-                <path d="M 500,700 Q 600,450 900,380 L 900,460 Q 660,510 560,700 Z" fill="#bae6fd" opacity="0.6"/>
-                
-                <!-- Main Island Landmass Accent lines -->
-                <path d="M 50,450 C 200,350 400,250 800,150" stroke="#cbd5e1" stroke-width="4" stroke-dasharray="8 4" fill="none" />
-                <path d="M 300,600 C 450,400 600,300 850,200" stroke="#cbd5e1" stroke-width="2" stroke-dasharray="4 4" fill="none" />
-                
-                <!-- Major highway grid lines -->
-                <line x1="250" y1="0" x2="450" y2="700" stroke="#e2e8f0" stroke-width="6" /> <!-- Ville-Marie / Hwy 15 approx -->
-                <line x1="0" y1="400" x2="900" y2="220" stroke="#e2e8f0" stroke-width="6" /> <!-- Sherbrooke St approx -->
-            </svg>
+    <div id="map"></div>
 
-            <!-- Plotted Map Nodes (Simulated Coordinates matching true Montreal layout relative orientations) -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+    <script>
+        // Master Data Points Array mapping your specific text parameters to geographical coordinates
+        const locationsData = [
+            // ZONE 1: OLD MONTREAL & PORT
+            { id: 1, zone: 'old-mtl', type: 'Attraction', name: 'Old Montreal (Vieux-Montréal)', desc: 'Classic Poutine central. Perfect zone to walk for the whole day.', lat: 45.5074, lng: -73.5542, border: 'var(--color-old-mtl)' },
+            { id: 2, zone: 'old-mtl', type: 'Attraction', name: 'Notre-Dame Basilica & Aura Show', desc: 'Stunning historical basilica offering the immersive Aura light display.', lat: 45.5045, lng: -73.5560, border: 'var(--color-old-mtl)' },
+            { id: 3, zone: 'old-mtl', type: 'Attraction', name: 'Montreal Science Center', desc: 'Interactive science museum located directly on the historic Key piers.', lat: 45.5042, lng: -73.5518, border: 'var(--color-old-mtl)' },
+            { id: 4, zone: 'old-mtl', type: 'Attraction', name: 'La Grande Roue Ferris Wheel', desc: 'Canada\'s largest observation wheel, giving panoramic views of the river.', lat: 45.5090, lng: -73.5490, border: 'var(--color-old-mtl)' },
+            { id: 5, zone: 'old-mtl', type: 'Attraction', name: 'Marché Bonsecours', desc: 'Historic domed public marketplace housing local artisan boutique shops.', lat: 45.5096, lng: -73.5514, border: 'var(--color-old-mtl)' },
+            { id: 6, zone: 'old-mtl', type: 'Food', name: 'Crêperie St. Paul', desc: 'Delicious local sweet and savory pancakes and crepes.', lat: 45.5079, lng: -73.5526, border: 'var(--color-old-mtl)', meta: '🥞 Top Crepe Recommendation' },
+            { id: 7, zone: 'old-mtl', type: 'Food', name: 'Monarque Restaurant', desc: 'High-end Frenchie dinner destination located at 406 Rue Saint-Jacques.', lat: 45.5028, lng: -73.5595, border: 'var(--color-old-mtl)', meta: '🍷 Upscale French Dinner' },
+            { id: 8, zone: 'old-mtl', type: 'Food', name: 'The Crew Collective & Café', desc: 'Stunning architectural cafe set inside a vast historic 1920s royal bank lobby.', lat: 45.5022, lng: -73.5601, border: 'var(--color-old-mtl)', meta: '☕ Coffee & Architecture' },
+            { id: 9, zone: 'old-mtl', type: 'Food', name: 'Modavie', desc: 'Classic French bistro and jazz bar with fantastic lamb and wine pairings.', lat: 45.5065, lng: -73.5547, border: 'var(--color-old-mtl)' },
+            { id: 10, zone: 'old-mtl', type: 'Food', name: 'Holder', desc: 'Bustling, majestic European-style brasserie serving impeccable French fare.', lat: 45.5019, lng: -73.5574, border: 'var(--color-old-mtl)' },
+            { id: 11, zone: 'old-mtl', type: 'Food', name: 'Pincette', desc: 'Your designated "bar à homard" lobster hub right in the old quarter.', lat: 45.5068, lng: -73.5539, border: 'var(--color-old-mtl)', meta: '🦞 Lobster Bar' },
+
+            // ZONE 2: DOWNTOWN
+            { id: 12, zone: 'downtown', type: 'Attraction', name: 'St. Catherine Shopping Area', desc: 'The pulse of downtown commercial retail shopping.', lat: 45.5018, lng: -73.5714, border: 'var(--color-downtown)' },
+            { id: 13, zone: 'downtown', type: 'Attraction', name: 'Underground City (RÉSO)', desc: 'Subterranean nexus. Main entry hub at 747 Rue du Square-Victoria.', lat: 45.5015, lng: -73.5641, border: 'var(--color-downtown)' },
+            { id: 14, zone: 'downtown', type: 'Attraction', name: 'Oasis Immersion', desc: 'Massive, room-scale walk-through digital interactive exhibition layout.', lat: 45.5020, lng: -73.5630, border: 'var(--color-downtown)' },
+            { id: 15, zone: 'downtown', type: 'Attraction', name: 'Montreal Museum of Fine Arts', desc: 'Deep collections of classic and contemporary global artistic works.', lat: 45.4986, lng: -73.5801, border: 'var(--color-downtown)' },
+            { id: 16, zone: 'downtown', type: 'Food', name: 'Le Passé Composé', desc: 'Famous Duck Liver Lunch/Brunch located at 1310 Boul. de Maisonneuve E.', lat: 45.5212, lng: -73.5562, border: 'var(--color-downtown)', meta: '🦆 Duck Liver Bistro' },
+            { id: 17, zone: 'downtown', type: 'Food', name: 'Dunn\'s Famous', desc: 'Open late-night legendary spot for authentic Montreal Smoked Meat.', lat: 45.5005, lng: -73.5719, border: 'var(--color-downtown)' },
+            { id: 18, zone: 'downtown', type: 'Food', name: 'Le Pois Penché', desc: 'Refined Parisian luxury seafood dining spot.', lat: 45.4990, lng: -73.5760, border: 'var(--color-downtown)', meta: '🦪 High-End Seafood' },
+            { id: 19, zone: 'downtown', type: 'Food', name: 'C\'choColat', desc: 'Decadent interactive desserts and custom sweets workshop.', lat: 45.4947, lng: -73.5794, border: 'var(--color-downtown)' },
+            { id: 20, zone: 'downtown', type: 'Hotel', name: 'Warwick Le Crystal / Marriott', desc: 'Central downtown accommodation luxury hub zone.', lat: 45.4975, lng: -73.5705, border: 'var(--color-downtown)' },
+
+            // ZONE 3: MOUNT ROYAL & NORTH
+            { id: 21, zone: 'mountain', type: 'Attraction', name: 'Mount Royal Park', desc: 'Panoramic city lookouts. Just up the road from Little Italy.', lat: 45.5041, lng: -73.5874, border: 'var(--color-mountain)' },
+            { id: 22, zone: 'mountain', type: 'Attraction', name: 'Saint Joseph\'s Oratory', desc: 'Stunning monumental domed basilica overlooking the western city slope.', lat: 45.4924, lng: -73.6176, border: 'var(--color-mountain)' },
+            { id: 23, zone: 'mountain', type: 'Attraction', name: 'Jean-Talon Market & Little Italy', desc: 'Open-air fresh product displays and exceptional Italian bistros.', lat: 45.5361, lng: -73.6150, border: 'var(--color-mountain)' },
+            { id: 24, zone: 'mountain', type: 'Food', name: 'Schwartz\'s Deli', desc: 'World-renowned iconic spice-rubbed smoked meat sandwiches.', lat: 45.5165, lng: -73.5777, border: 'var(--color-mountain)', meta: '🥪 Must-Visit Classic' },
+            { id: 25, zone: 'mountain', type: 'Food', name: 'Café Olimpico', desc: 'The place to sample their legendary coffee ice cream treats.', lat: 45.5229, lng: -73.6074, border: 'var(--color-mountain)', meta: '🍦 Coffee & Ice Cream' },
+            { id: 26, zone: 'mountain', type: 'Food', name: 'Dulce Churros', desc: 'Premium artisanal churro shop.', lat: 45.5180, lng: -73.5850, border: 'var(--color-mountain)' },
+
+            // ZONE 4: OLYMPIC PARK
+            { id: 27, zone: 'olympic', type: 'Attraction', name: 'Montreal Biodome', desc: 'Five distinct replica American ecosystems housed under one roof.', lat: 45.5598, lng: -73.5496, border: 'var(--color-olympic)' },
+            { id: 28, zone: 'olympic', type: 'Attraction', name: 'Montreal Botanical Garden', desc: 'Expansive thematic greenhouses. Bring your local bagels here to eat!', lat: 45.5601, lng: -73.5570, border: 'var(--color-olympic)' },
+            { id: 29, zone: 'olympic', type: 'Attraction', name: 'Montreal Insectarium', desc: 'Remarkable architectural bug exhibition pavilion.', lat: 45.5615, lng: -73.5540, border: 'var(--color-olympic)' },
+
+            // ZONE 5: ISLANDS
+            { id: 30, zone: 'islands', type: 'Attraction', name: 'Parc Jean-Drapeau', desc: 'Expansive river park islands hosting massive festivals and art.', lat: 45.5131, lng: -73.5284, border: 'var(--color-islands)' },
+            { id: 31, zone: 'islands', type: 'Attraction', name: 'Circuit Gilles Villeneuve (F1)', desc: 'The official high-speed Formula 1 championship track on Île Notre-Dame.', lat: 45.5044, lng: -73.5228, border: 'var(--color-islands)' },
+            { id: 32, zone: 'islands', type: 'Attraction', name: 'La Ronde Amusement Park', desc: 'Six Flags theme park. Look for the legendary M&M topping pizza!', lat: 45.5285, lng: -73.5345, border: 'var(--color-islands)', meta: '🍕 M&M Pizza Spot' },
+            { id: 33, zone: 'islands', type: 'Attraction', name: 'Cirque Du Soleil Theater', desc: 'Grand entertainment arena showcasing iconic acrobatic performance art.', lat: 45.5165, lng: -73.5422, border: 'var(--color-islands)' }
+        ];
+
+        // Initialize Live Map (Centered on core Montreal Coordinates)
+        const map = L.map('map').setView([45.515, -73.565], 13);
+
+        // Inject OpenStreetMap Layer Graphics
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap contributors'
+        }).addTo(map);
+
+        const markersMap = {};
+
+        // Generate Map Markers Programmatically
+        function loadMarkers() {
+            locationsData.forEach(loc => {
+                // Determine marker color depending on zone categorization
+                let markerColor = '#64748b';
+                if(loc.zone === 'old-mtl') markerColor = 'var(--color-old-mtl)';
+                if(loc.zone === 'downtown') markerColor = 'var(--color-downtown)';
+                if(loc.zone === 'mountain') markerColor = 'var(--color-mountain)';
+                if(loc.zone === 'olympic') markerColor = 'var(--color-olympic)';
+                if(loc.zone === 'islands') markerColor = 'var(--color-islands)';
+
+                const customMarker = L.divIcon({
+                    className: 'custom-div-icon',
+                    html: `<div style="background-color: ${markerColor}; width: 14px; height: 14px; border-radius: 50%; border: 2px solid white; box-shadow: 0 2px 5px rgba(0,0,0,0.4);"></div>`,
+                    iconSize: [14, 14],
+                    iconAnchor: [7, 7]
+                });
+
+                const popupContent = `
+                    <div class="popup-card">
+                        <h3>${loc.name}</h3>
+                        <p><strong>${loc.type}</strong></p>
+                        <p>${loc.desc}</p>
+                        ${loc.meta ? `<span class="popup-badge" style="color:#b45309;">${loc.meta}</span>` : ''}
+                    </div>
+                `;
+
+                const marker = L.marker([loc.lat, loc.lng], { icon: customMarker })
+                    .bindPopup(popupContent, { className: 'custom-popup' })
+                    .addTo(map);
+
+                markersMap[loc.id] = marker;
+            });
+        }
+
+        // Render Dynamic Cards into Sidebar List View
+        function renderList(filteredData) {
+            const container = document.getElementById('locationsList');
+            container.innerHTML = '';
+
+            if(filteredData.length === 0) {
+                container.innerHTML = '<p style="color:var(--text-muted); font-size:14px; padding:20px; text-align:center;">No spots match your filters.</p>';
+                return;
+            }
+
+            filteredData.forEach(loc => {
+                const card = document.createElement('div');
+                card.className = `location-item`;
+                card.style.borderLeftColor = loc.border;
+                card.onclick = () => focusLocation(loc.id, loc.lat, loc.lng);
+
+                card.innerHTML = `
+                    <div class="item-header">
+                        <span class="item-title">${loc.name}</span>
+                        <span class="item-type" style="color: ${loc.border}; background: #f1f5f9;">${loc.type}</span>
+                    </div>
+                    <div class="item-desc">${loc.desc}</div>
+                    ${loc.meta ? `<div class="item-meta" style="color:#b45309;">🍔 ${loc.meta}</div>` : ''}
+                `;
+                container.appendChild(card);
+            });
+        }
+
+        // Handle Map Pan Zoom Transitions on Item Selection
+        function focusLocation(id, lat, lng) {
+            map.setView([lat, lng], 15, { animate: true, duration: 1.5 });
+            const marker = markersMap[id];
+            if (marker) {
+                setTimeout(() => {
+                    marker.openPopup();
+                }, 400);
+            }
+        }
+
+        // Filter Logic Matrix (Combining Header Buttons & Search Inputs)
+        let currentZone = 'all';
+
+        function filterZone(zoneId) {
+            currentZone = zoneId;
+            document.querySelectorAll('.filter-btn').forEach(btn => btn.classList.remove('active'));
+            event.target.classList.add('active');
+            applyFilters();
+        }
+
+        function applyFilters() {
+            const query = document.getElementById('searchBar').value.toLowerCase();
             
-            <!-- Zone 3: Mount Royal & North (Left/Center-top) -->
-            <div class="map-node node-z3" style="top: 30%; left: 32%;">
-                <div class="pin"><div class="pin-inner"></div></div>
-                <div class="node-label">Mount Royal Park</div>
-            </div>
-            <div class="map-node node-z3" style="top: 35%; left: 22%;">
-                <div class="pin"><div class="pin-inner"></div></div>
-                <div class="node-label">Saint Joseph's Oratory</div>
-            </div>
-            <div class="map-node node-z3" style="top: 18%; left: 42%;">
-                <div class="pin"><div class="pin-inner"></div></div>
-                <div class="node-label">Jean-Talon Market / Little Italy</div>
-            </div>
-            <div class="map-node node-z3" style="top: 28%; left: 46%;">
-                <div class="pin"><div class="pin-inner"></div></div>
-                <div class="node-label">Schwartz's Deli & Olimpico</div>
-            </div>
+            const filtered = locationsData.filter(loc => {
+                const matchesZone = (currentZone === 'all' || loc.zone === currentZone);
+                const matchesSearch = loc.name.toLowerCase().includes(query) || 
+                                      loc.desc.toLowerCase().includes(query) || 
+                                      (loc.meta && loc.meta.toLowerCase().includes(query));
+                return matchesZone && matchesSearch;
+            });
 
-            <!-- Zone 2: Downtown (Center) -->
-            <div class="map-node node-z2" style="top: 45%; left: 38%;">
-                <div class="pin"><div class="pin-inner"></div></div>
-                <div class="node-label">St. Catherine St Shopping</div>
-            </div>
-            <div class="map-node node-z2" style="top: 50%; left: 44%;">
-                <div class="pin"><div class="pin-inner"></div></div>
-                <div class="node-label">Underground City & Oasis</div>
-            </div>
-            <div class="map-node node-z2" style="top: 44%; left: 28%;">
-                <div class="pin"><div class="pin-inner"></div></div>
-                <div class="node-label">Museum of Fine Arts</div>
-            </div>
+            // Update visible list
+            renderList(filtered);
 
-            <!-- Zone 1: Old Montreal (Center-Right, touching river) -->
-            <div class="map-node node-z1" style="top: 56%; left: 52%;">
-                <div class="pin"><div class="pin-inner"></div></div>
-                <div class="node-label">Notre-Dame Basilica (Aura)</div>
-            </div>
-            <div class="map-node node-z1" style="top: 52%; left: 58%;">
-                <div class="pin"><div class="pin-inner"></div></div>
-                <div class="node-label">Old Port & Ferris Wheel</div>
-            </div>
-            <div class="map-node node-z1" style="top: 59%; left: 48%;">
-                <div class="pin"><div class="pin-inner"></div></div>
-                <div class="node-label">Monarque / Holder / Crew Cafe</div>
-            </div>
+            // Update visible markers on map canvas
+            locationsData.forEach(loc => {
+                const isMatch = filtered.some(f => f.id === loc.id);
+                if (isMatch) {
+                    if (!map.hasLayer(markersMap[loc.id])) map.addLayer(markersMap[loc.id]);
+                } else {
+                    if (map.hasLayer(markersMap[loc.id])) map.removeLayer(markersMap[loc.id]);
+                }
+            });
+        }
 
-            <!-- Zone 5: Islands (In the blue river zone) -->
-            <div class="map-node node-z5" style="top: 66%; left: 66%;">
-                <div class="pin"><div class="pin-inner"></div></div>
-                <div class="node-label">Parc Jean-Drapeau</div>
-            </div>
-            <div class="map-node node-z5" style="top: 74%; left: 70%;">
-                <div class="pin"><div class="pin-inner"></div></div>
-                <div class="node-label">F1 Circuit (Île Notre-Dame)</div>
-            </div>
-            <div class="map-node node-z5" style="top: 54%; left: 68%;">
-                <div class="pin"><div class="pin-inner"></div></div>
-                <div class="node-label">La Ronde & Circus Theater</div>
-            </div>
+        // Event Listener Bindings
+        document.getElementById('searchBar').addEventListener('input', applyFilters);
 
-            <!-- Zone 4: Olympic Park (Far Northeast) -->
-            <div class="map-node node-z4" style="top: 18%; left: 76%;">
-                <div class="pin"><div class="pin-inner"></div></div>
-                <div class="node-label">Botanical Garden (Bagels)</div>
-            </div>
-            <div class="map-node node-z4" style="top: 23%; left: 82%;">
-                <div class="pin"><div class="pin-inner"></div></div>
-                <div class="node-label">Biodome & Insectarium</div>
-            </div>
-
-            <!-- Zone 6: Regional Transit indicators -->
-            <div class="map-node node-z6" style="top: 88%; left: 15%;">
-                <div class="pin"><div class="pin-inner"></div></div>
-                <div class="node-label">⬅ Airport / King's Crossing (Toronto)</div>
-            </div>
-            <div class="map-node node-z6" style="top: 90%; left: 48%;">
-                <div class="pin"><div class="pin-inner"></div></div>
-                <div class="node-label">⬇ Parc Safari (US Border)</div>
-            </div>
-
-
-            <!-- Legend Panel -->
-            <div class="map-legend">
-                <div class="legend-title">Geographic Cluster Key</div>
-                <div class="legend-item"><div class="legend-color" style="background: var(--zone-1);"></div> Old Montreal & Old Port</div>
-                <div class="legend-item"><div class="legend-color" style="background: var(--zone-2);"></div> Downtown / Underground City</div>
-                <div class="legend-item"><div class="legend-color" style="background: var(--zone-3);"></div> Mount Royal & Little Italy</div>
-                <div class="legend-item"><div class="legend-color" style="background: var(--zone-4);"></div> Olympic Park / Space for Life</div>
-                <div class="legend-item"><div class="legend-color" style="background: var(--zone-5);"></div> Jean-Drapeau Park & Islands</div>
-                <div class="legend-item"><div class="legend-color" style="background: var(--zone-6);"></div> Regional Outlying Hubs</div>
-                
-                <div class="app-notice">
-                    📱 <strong>Street Parking:</strong> Use the <strong>P$ Mobile Service App</strong> while exploring.
-                </div>
-            </div>
-
-        </div>
-    </div>
-
+        // Initial System Spin Up
+        loadMarkers();
+        renderList(locationsData);
+    </script>
 </body>
 </html>
